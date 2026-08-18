@@ -1,0 +1,31 @@
+name: Add trip popup
+on:
+  push:
+    branches: [popup-test]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add popup frontend
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text()
+          if 'id="tripPopup"' in s: raise SystemExit(0)
+          css='''<style id="popup-style">#tripPopup{position:fixed;inset:0;background:rgba(23,32,51,.58);display:flex;align-items:center;justify-content:center;padding:20px;z-index:9999}#tripPopup.hidden{display:none}.trip-popup-card{width:min(420px,100%);background:#fff;border-radius:18px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.22)}.trip-popup-card h2{margin:0 0 8px}.trip-popup-card p{color:#697386;margin:0 0 16px;font-size:14px}.trip-popup-card select{margin-bottom:12px}.trip-popup-card button{width:100%}</style>'''
+          html='''<div id="tripPopup"><div class="trip-popup-card"><h2>👋 Who are you?</h2><p>Select your name to start editing this trip.</p><select id="tripPopupUser"><option value="">Select your name</option></select><button class="primary" id="tripPopupContinue">Continue</button></div></div>'''
+          js='''<script id="trip-popup-script">(function(){function fill(){var s=document.getElementById('tripPopupUser'),ps=window.people||[];if(!s||!ps.length)return false;s.innerHTML='<option value="">Select your name</option>'+ps.map(function(p){return '<option value="'+String(p).replace(/"/g,'&quot;')+'">'+p+'</option>'}).join('');var saved=localStorage.getItem('tripEditor')||'';if(saved&&ps.indexOf(saved)>=0)document.getElementById('tripPopup').classList.add('hidden');return true}document.addEventListener('DOMContentLoaded',function(){document.getElementById('tripPopupContinue').onclick=function(){var v=document.getElementById('tripPopupUser').value;if(!v)return alert('Please select your name first.');if(typeof setEditor==='function')setEditor(v);document.getElementById('tripPopup').classList.add('hidden')};var n=0,t=setInterval(function(){if(fill()){clearInterval(t);if(!localStorage.getItem('tripEditor'))document.getElementById('tripPopup').classList.remove('hidden')}if(++n>100)clearInterval(t)},300)})})();</script>'''
+          s=s.replace('</head>',css+'</head>').replace('<body>','<body>'+html).replace('</body>',js+'</body>')
+          p.write_text(s)
+          PY
+      - name: Commit popup
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m "Add startup identity popup" || exit 0
+          git push
