@@ -1,0 +1,54 @@
+name: TripEX Mobile Balance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - '.github/workflows/mobile-balance.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  balance-ui:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Improve mobile balance cards
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          marker = 'id="tripex-mobile-balance-v1"'
+          if marker not in s:
+              css = r'''<style id="tripex-mobile-balance-v1">
+@media(max-width:600px){
+  .table{overflow:visible;margin:0}
+  .table table{width:100%;min-width:0;border-collapse:separate;border-spacing:0 8px;font-size:13px}
+  .table thead{display:none}
+  .table tbody tr{display:grid;grid-template-columns:1fr 1fr;gap:0 8px;background:#fbfcff;border:1px solid var(--border);border-radius:14px;padding:10px 11px;box-shadow:0 3px 12px rgba(20,33,61,.05)}
+  .table tbody td{display:block;border:0;padding:5px 3px;text-align:left;min-width:0}
+  .table tbody td:first-child{grid-column:1/-1;font-size:15px;font-weight:800;padding-bottom:7px;border-bottom:1px solid var(--border);margin-bottom:2px}
+  .table tbody td:nth-child(2)::before{content:'Actually Paid';display:block;font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+  .table tbody td:nth-child(3)::before{content:'Fair Share';display:block;font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+  .table tbody td:nth-child(4)::before{content:'Balance';display:block;font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+  .table tbody td:nth-child(5)::before{content:'Result';display:block;font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+  .table tbody td:nth-child(5){grid-column:1/-1;padding-top:7px}
+  .table tbody td:nth-child(4){font-weight:800}
+}
+</style>'''
+              s = s.replace('</head>', css + '</head>', 1)
+              p.write_text(s, encoding='utf-8')
+          else:
+              print('Mobile balance style already present')
+      - name: Commit mobile balance UI
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Improve individual balance on mobile"
+          git push
