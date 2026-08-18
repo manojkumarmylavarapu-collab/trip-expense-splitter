@@ -1,0 +1,54 @@
+name: Fix mobile balance layout
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix-mobile-balance:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply mobile balance cards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          marker = '/* mobile balance v3 */'
+          if marker in s:
+              print('Mobile balance fix already present')
+              raise SystemExit(0)
+          old = '.table{margin:0 -4px}.table table{min-width:0;width:100%;font-size:12px}.table th,.table td{padding:8px 5px}.table th:nth-child(2),.table td:nth-child(2),.table th:nth-child(3),.table td:nth-child(3){display:none}'
+          new = '''/* mobile balance v3 */
+          .table{margin:0}
+          .table table{min-width:0;width:100%;font-size:13px}
+          .table th,.table td{padding:9px 5px}
+          .table th:nth-child(2),.table td:nth-child(2),.table th:nth-child(3),.table td:nth-child(3){display:table-cell}
+          #balances tr{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;padding:10px 4px;border-bottom:1px solid var(--border)}
+          #balances td{border:0;padding:3px 0}
+          #balances td:nth-child(1){grid-column:1/-1;font-weight:800;font-size:15px}
+          #balances td:nth-child(2):before{content:'Actually Paid';display:block;font-size:9px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+          #balances td:nth-child(3):before{content:'Fair Share';display:block;font-size:9px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+          #balances td:nth-child(4):before{content:'Balance';display:block;font-size:9px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+          #balances td:nth-child(5):before{content:'Result';display:block;font-size:9px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+          #balances td:nth-child(4),#balances td:nth-child(5){font-weight:750}
+          #balances tr:first-child{padding-top:6px}
+          #balances tr:last-child{border-bottom:0}'''
+          if old not in s:
+              raise SystemExit('Expected mobile balance CSS not found; refusing to modify file')
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Make individual balance mobile friendly'
+          git push
