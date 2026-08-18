@@ -1,0 +1,45 @@
+name: Apply activity logging fix
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch activity logging
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          old = '''function render(){renderPeople();renderExpenses();renderActivity();calc();applyLock()}function renderPeople(){document.getElementById('people').innerHTML=people.length?people.map((p,i)=>`<div class="person"><input data-focus="person:${i}" value="${esc(p)}" onchange="renamePerson(${i},this.value)"><button onclick="removePerson(${i})">×</button></div>`).join(''):'<div class="empty">No people added.</div>'}function renderExpenses(){document.getElementById('expenses').innerHTML=expenses.length?expenses.map(e=>`<div class="expense"><select data-focus="expense:${e.id}:paid_by" onchange="editExpense(${e.id},'paid_by',this.value)">${people.map(p=>`<option ${p===e.paid_by?'selected':''}>${esc(p)}</option>`).join('')}</select><input data-focus="expense:${e.id}:amount" type="number" min="0" step="0.01" value="${e.amount}" oninput="editExpense(${e.id},'amount',this.value)"><input data-focus="expense:${e.id}:category" value="${esc(e.category)}" placeholder="Food / Hotel / Petrol" oninput="editExpense(${e.id},'category',this.value)"><input data-focus="expense:${e.id}:remarks" class="remarks" value="${esc(e.remarks)}" placeholder="What was it spent for?" oninput="editExpense(${e.id},'remarks',this.value)"><button class="del" onclick="deleteExpense(${e.id})">Delete</button></div>`).join(''):'<div class="empty">No expenses yet.</div>'}function renderActivity(){'''
+
+          new = '''function render(){renderPeople();renderExpenses();renderActivity();calc();applyLock()}function renderPeople(){document.getElementById('people').innerHTML=people.length?people.map((p,i)=>`<div class="person"><input data-focus="person:${i}" value="${esc(p)}" onchange="renamePerson(${i},this.value)"><button onclick="removePerson(${i})">×</button></div>`).join(''):'<div class="empty">No people added.</div>'}function renderExpenses(){document.getElementById('expenses').innerHTML=expenses.length?expenses.map(e=>`<div class="expense"><select data-focus="expense:${e.id}:paid_by" onchange="commitExpense(${e.id},'paid_by',this.value)">${people.map(p=>`<option ${p===e.paid_by?'selected':''}>${esc(p)}</option>`).join('')}</select><input data-focus="expense:${e.id}:amount" type="number" min="0" step="0.01" value="${e.amount}" oninput="editExpenseInput(${e.id},'amount',this.value)" onblur="commitExpense(${e.id},'amount',this.value)"><input data-focus="expense:${e.id}:category" value="${esc(e.category)}" placeholder="Food / Hotel / Petrol" oninput="editExpenseInput(${e.id},'category',this.value)" onblur="commitExpense(${e.id},'category',this.value)"><input data-focus="expense:${e.id}:remarks" class="remarks" value="${esc(e.remarks)}" placeholder="What was it spent for?" oninput="editExpenseInput(${e.id},'remarks',this.value)" onblur="commitExpense(${e.id},'remarks',this.value)"><button class="del" onclick="deleteExpense(${e.id})">Delete</button></div>`).join(''):'<div class="empty">No expenses yet.</div>'}function renderActivity(){'''
+
+          if old not in s:
+              raise SystemExit('renderExpenses block not found')
+          s = s.replace(old, new, 1)
+
+          old2 = "function editExpense(id,key,value){if(!currentUser)return;clearTimeout(timers[id+key]);timers[id+key]=setTimeout(async()=>{let e=expenses.find(x=>x.id===id);if(!e)return;let old=e[key],v=key==='amount'?Number(value)||0:value;if(String(old)===String(v))return;let r=await sb.from('trip_expenses').update({[key]:v,last_edited_by:currentUser,last_updated:new Date().toISOString()}).eq('id',id);if(r.error)console.error(r.error);else await log(id,`changed ${key.replace('_',' ')}`,old,v)},500)}"
+          new2 = "function editExpenseInput(id,key,value){if(!currentUser)return;let e=expenses.find(x=>x.id===id);if(!e)return;let k=id+':'+key;if(!Object.prototype.hasOwnProperty.call(pendingEdits,k))pendingEdits[k]=e[key];e[key]=key==='amount'?Number(value)||0:value;calc()}async function commitExpense(id,key,value){if(!currentUser)return;let e=expenses.find(x=>x.id===id);if(!e)return;let k=id+':'+key,old=Object.prototype.hasOwnProperty.call(pendingEdits,k)?pendingEdits[k]:e[key],v=key==='amount'?Number(value)||0:value;e[key]=v;delete pendingEdits[k];if(String(old)===String(v))return;let r=await sb.from('trip_expenses').update({[key]:v,last_edited_by:currentUser,last_updated:new Date().toISOString()}).eq('id',id);if(r.error){console.error(r.error);e[key]=old;renderExpenses();calc();return}await log(id,`changed ${key.replace('_',' ')}`,old,v)}"
+          if old2 not in s:
+              raise SystemExit('editExpense function not found')
+          s = s.replace(old2, new2, 1)
+
+          s = s.replace("let people=[],expenses=[],activity=[],timers={},currentUser=localStorage.getItem('tripEditor')||'';", "let people=[],expenses=[],activity=[],timers={},pendingEdits={},currentUser=localStorage.getItem('tripEditor')||'';", 1)
+
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Commit fix and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Fix recent activity logging on completed edits" || true
+          git rm .github/workflows/fix-activity.yml || true
+          git commit -m "Remove temporary activity fix workflow" || true
+          git push
