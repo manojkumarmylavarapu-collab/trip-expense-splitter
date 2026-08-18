@@ -45,6 +45,12 @@
   .table tbody td:nth-child(5)::before{content:'Result';display:block;font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
   .table tbody td:nth-child(4),.table tbody td:nth-child(5){font-weight:800}
 }
+</style><style id="mobile-expense-numbering">
+@media(max-width:600px){
+  #expenses{counter-reset:expense-number}
+  #expenses .expense{counter-increment:expense-number;position:relative}
+  #expenses .expense::before{content:"Expense " counter(expense-number);grid-column:1/-1;display:block;font-size:12px;font-weight:850;color:#315efb;letter-spacing:.04em;text-transform:uppercase;padding:0 2px 2px}
+}
 </style></head><body><div id="tripPopup"><div class="trip-popup-card"><h2>👋 Who are you?</h2><p>Select your name to start editing this trip.</p><select id="tripPopupUser"><option value="">Select your name</option></select><button class="primary" id="tripPopupContinue">Continue</button></div></div><div class="wrap"><h1>TripEX</h1><div class="sub" style="margin-bottom:18px"><span style="font-weight:700">Split. Track. Settle.</span><span style="display:block;font-size:12px;margin-top:4px;color:#7a8496;font-weight:600;letter-spacing:.2px">A Noone Technologies product</span></div><div id="status" class="status">Connecting to shared trip data…</div>
 <div class="hero"><div class="hero-top"><div><div class="hero-kicker">Trip dashboard</div><div class="hero-title">Your trip, at a glance</div><div class="hero-sub">Everything shared, tracked and settled in one place.</div></div><div class="hero-live">🟢 LIVE SYNC</div></div><div class="hero-stats"><div class="hero-stat"><small>Total spent</small><strong id="heroTotal">₹0.00</strong></div><div class="hero-stat"><small>People</small><strong id="heroCount">0</strong></div><div class="hero-stat"><small>Expenses</small><strong id="heroExpenses">0</strong></div></div></div>
 <div class="identity"><label>👤 Who are you?</label><select id="identity" onchange="setIdentity(this.value)"><option value="">Select your name to enable editing</option></select><small id="identityHint">Until you select your name, this page is view-only.</small></div>
