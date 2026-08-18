@@ -1,0 +1,71 @@
+name: Add expense save workflow
+on:
+  push:
+    paths:
+      - '.github/workflows/add-expense-save.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch TripEX expense save UX
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          marker = '<script id="tripex-save-expense-fix">'
+          if marker in s:
+              print('Patch already present')
+              raise SystemExit(0)
+          patch = r'''<script id="tripex-save-expense-fix">
+          (function(){
+            const baselines = {};
+            const dirty = new Set();
+            function snapshot(e){return {paid_by:e.paid_by||'',amount:Number(e.amount)||0,category:e.category||'',remarks:e.remarks||''};}
+            function isBlank(e){return !e.paid_by&&(Number(e.amount)||0)===0&&!e.category&&!e.remarks;}
+            function ensureBaseline(e){if(!Object.prototype.hasOwnProperty.call(baselines,e.id))baselines[e.id]=snapshot(e);}
+            function markDirty(id){dirty.add(String(id));const row=document.querySelector('.expense[data-expense-id="'+id+'"]');if(row){const b=row.querySelector('.save-expense');if(b)b.style.display='block';}}
+            function clearDirty(id){dirty.delete(String(id));delete baselines[id];}
+            window.renderExpenses=function(){
+              const host=document.getElementById('expenses');if(!host)return;
+              if(!expenses.length){host.innerHTML='<div class="empty">No expenses yet.</div>';return;}
+              expenses.forEach(ensureBaseline);
+              host.innerHTML=expenses.map(e=>{const unsaved=isBlank(e)||dirty.has(String(e.id));return `<div class="expense" data-expense-id="${e.id}">
+                <label class="expense-field"><span>Paid by</span><select data-focus="expense:${e.id}:paid_by" onchange="editExpenseInput(${e.id},'paid_by',this.value)"><option value="" ${!e.paid_by?'selected':''}>Select payer</option>${people.map(p=>`<option ${p===e.paid_by?'selected':''}>${esc(p)}</option>`).join('')}</select></label>
+                <label class="expense-field"><span>Amount</span><input data-focus="expense:${e.id}:amount" type="number" min="0" step="0.01" value="${e.amount}" oninput="editExpenseInput(${e.id},'amount',this.value)" onblur="commitExpense(${e.id},'amount',this.value)"></label>
+                <label class="expense-field"><span>Category</span><input data-focus="expense:${e.id}:category" value="${esc(e.category)}" placeholder="Food / Hotel / Petrol" oninput="editExpenseInput(${e.id},'category',this.value)" onblur="commitExpense(${e.id},'category',this.value)"></label>
+                <label class="expense-field"><span>Remarks</span><input data-focus="expense:${e.id}:remarks" value="${esc(e.remarks)}" placeholder="What was it spent for?" oninput="editExpenseInput(${e.id},'remarks',this.value)" onblur="commitExpense(${e.id},'remarks',this.value)"></label>
+                <button class="save-expense primary" style="display:${unsaved?'block':'none'}" onclick="saveExpense(${e.id})">Save</button>
+                <button class="del" onclick="deleteExpense(${e.id})">Delete expense</button>
+              </div>`}).join('');applyLock();
+            };
+            window.editExpenseInput=function(id,key,value){if(!currentUser)return;const e=expenses.find(x=>x.id===id);if(!e)return;ensureBaseline(e);e[key]=key==='amount'?(Number(value)||0):value;markDirty(id);calc();};
+            window.commitExpense=async function(){};
+            window.saveExpense=async function(id){
+              if(!canEdit())return;const e=expenses.find(x=>x.id===id);if(!e)return;const row=document.querySelector('.expense[data-expense-id="'+id+'"]');
+              if(row){const payer=row.querySelector('[data-focus="expense:'+id+':paid_by"]'),amount=row.querySelector('[data-focus="expense:'+id+':amount"]'),category=row.querySelector('[data-focus="expense:'+id+':category"]'),remarks=row.querySelector('[data-focus="expense:'+id+':remarks"]');e.paid_by=payer?payer.value:e.paid_by||'';e.amount=amount?(Number(amount.value)||0):Number(e.amount)||0;e.category=category?category.value:e.category||'';e.remarks=remarks?remarks.value:e.remarks||'';}
+              if(!e.paid_by){alert('Please select who paid for this expense.');return;}if((Number(e.amount)||0)<=0){alert('Please enter an amount greater than 0.');return;}
+              const old=baselines[id]||{paid_by:'',amount:0,category:'',remarks:''},next=snapshot(e),changed=['paid_by','amount','category','remarks'].filter(k=>String(old[k])!==String(next[k]));
+              if(!changed.length){clearDirty(id);renderExpenses();return;}
+              const r=await sb.from('trip_expenses').update({paid_by:next.paid_by,amount:next.amount,category:next.category,remarks:next.remarks,last_edited_by:currentUser,last_updated:new Date().toISOString()}).eq('id',id);if(r.error){alert(r.error.message);return;}
+              for(const key of changed)await log(id,`changed ${key.replace('_',' ')}`,old[key],next[key]);clearDirty(id);renderExpenses();calc();
+            };
+            const css=document.createElement('style');css.textContent='.save-expense{border:0;background:#315efb;color:#fff;border-radius:9px;padding:9px 8px;font-weight:800}@media(max-width:600px){.save-expense{grid-column:1/-1;width:100%;height:38px;padding:7px;border-radius:11px}}';document.head.appendChild(css);
+          })();
+          </script>'''
+          s = s.replace('</body>', patch + '</body>')
+          p.write_text(s, encoding='utf-8')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Add explicit save for expense edits'
+          git push
