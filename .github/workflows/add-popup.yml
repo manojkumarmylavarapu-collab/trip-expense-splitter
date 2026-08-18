@@ -15,10 +15,7 @@ jobs:
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text()
-          old="var s=document.getElementById('tripPopupUser'),ps=window.people||[];if(!s||!ps.length)return false;s.innerHTML='<option value=\"\">Select your name</option>'+ps.map(function(p){return '<option value=\"'+String(p).replace(/\"/g,'&quot;')+'\">'+p+'</option>'}).join('');var saved=localStorage.getItem('tripEditor')||'';if(saved&&ps.indexOf(saved)>=0)document.getElementById('tripPopup').classList.add('hidden');return true"
-          new="var s=document.getElementById('tripPopupUser'),base=document.getElementById('identity');if(!s||!base||base.options.length<2)return false;var ps=Array.from(base.options).slice(1).map(function(o){return o.value});s.innerHTML=base.innerHTML;var saved=localStorage.getItem('tripEditor')||'';if(saved&&ps.indexOf(saved)>=0){s.value=saved;document.getElementById('tripPopup').classList.add('hidden')}return true"
-          if old not in s: raise SystemExit('popup pattern not found')
-          s=s.replace(old,new)
+          s=s.replace("ps=window.people||[]", "ps=Array.from((document.getElementById('identity')||{options:[]}).options).slice(1).map(function(o){return o.value})")
           p.write_text(s)
           PY
       - name: Commit popup fix
