@@ -1,0 +1,30 @@
+name: Fix popup identity handoff
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch popup to call real identity handler
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text()
+          old="if(typeof setEditor==='function')setEditor(v);"
+          new="if(typeof setIdentity==='function'){setIdentity(v);var main=document.getElementById('identity');if(main)main.value=v;}"
+          if old not in s:
+              raise SystemExit('Expected popup handler not found')
+          p.write_text(s.replace(old,new,1))
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m "Fix popup identity handoff" || exit 0
+          git push
