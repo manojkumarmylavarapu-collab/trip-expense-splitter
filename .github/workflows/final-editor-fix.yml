@@ -1,0 +1,31 @@
+name: Final editor fix
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add active editor guard
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          marker='function subscribe(){'
+          if 'function activeEditor(){' not in s:
+              s=s.replace(marker,"function activeEditor(){const a=document.activeElement;return a&&a.matches('#expenses input,#expenses select,#people input')?a:null}\n"+marker,1)
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit and remove workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Add active editor guard" || true
+          git rm .github/workflows/final-editor-fix.yml || true
+          git commit -m "Remove temporary editor fix workflow" || true
+          git push
