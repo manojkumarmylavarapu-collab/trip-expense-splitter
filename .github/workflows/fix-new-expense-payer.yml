@@ -1,7 +1,8 @@
 name: Fix new expense payer
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
 
 permissions:
   contents: write
@@ -29,7 +30,7 @@ jobs:
           s = s.replace(old2, new2, 1)
           p.write_text(s)
           PY
-      - name: Commit fix
+      - name: Commit fix and remove temporary workflow
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
