@@ -1,0 +1,42 @@
+name: Fix mobile add-expense navigation
+
+on:
+  push:
+    paths:
+      - '.github/workflows/mobile-add-expense-scroll.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch add-expense navigation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          old = """async function addExpense(){if(!canEdit()||!people.length)return;let r=await sb.from('trip_expenses').insert({paid_by:people[0],amount:0,category:'',remarks:'',last_edited_by:currentUser,last_updated:new Date().toISOString()});if(r.error)alert(r.error.message);else{let q=await sb.from('trip_expenses').select('id').order('id',{ascending:false}).limit(1);if(q.data?.[0])await log(q.data[0].id,'added a new expense','','₹0.00')}}"""
+
+          new = """async function addExpense(){if(!canEdit()||!people.length)return;let r=await sb.from('trip_expenses').insert({paid_by:people[0],amount:0,category:'',remarks:'',last_edited_by:currentUser,last_updated:new Date().toISOString()}).select('id').single();if(r.error){alert(r.error.message);return}let newId=r.data?.id;if(newId)await log(newId,'added a new expense','','₹0.00');let targetId=newId;let tries=0;const goToNewExpense=()=>{let el=targetId?document.querySelector('[data-focus="expense:'+targetId+':amount"]'):null;if(el){el.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>el.focus(),350);return}if(tries++<12)setTimeout(goToNewExpense,120)};setTimeout(goToNewExpense,100)}"""
+
+          if old not in s:
+              raise SystemExit('Expected addExpense function was not found; no changes made.')
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Commit patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Fix add expense auto-scroll on mobile"
+          git push
