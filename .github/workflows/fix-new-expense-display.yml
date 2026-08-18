@@ -1,0 +1,39 @@
+name: Fix blank new expense display
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - '.github/workflows/fix-new-expense-display.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch blank expense payer
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          old = "${!e.paid_by?'selected':''}>Select payer</option>"
+          new = "${(!e.paid_by || (Number(e.amount)===0 && !e.category && !e.remarks))?'selected':''}>Select payer</option>"
+          if old not in s:
+              raise SystemExit('placeholder pattern not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+      - name: Commit and remove fixer
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Fix blank expense payer display [skip ci]"
+          git rm .github/workflows/fix-new-expense-display.yml
+          git commit -m "Remove temporary payer display fixer [skip ci]"
+          git push
