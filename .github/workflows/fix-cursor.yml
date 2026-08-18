@@ -1,0 +1,32 @@
+name: Apply cursor stability fix
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch realtime rendering
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old="function subscribe(){sb.channel('trip-live').on('postgres_changes',{event:'*',schema:'public',table:'trip_people'},async()=>{let f=focusState(),r=await sb.from('trip_people').select('*').order('id');people=(r.data||[]).map(x=>x.name);render();document.getElementById('identity').innerHTML='<option value=\"\">Select your name to enable editing</option>'+people.map(p=>`<option value=\"${esc(p)}\">${esc(p)}</option>`).join('');document.getElementById('identity').value=people.includes(currentUser)?currentUser:'';applyLock();restoreFocus(f)}).on('postgres_changes',{event:'*',schema:'public',table:'trip_expenses'},async()=>{let f=focusState(),r=await sb.from('trip_expenses').select('*').order('id');expenses=r.data||[];render();restoreFocus(f)}).on('postgres_changes',{event:'*',schema:'public',table:'trip_activity'},async()=>{let r=await sb.from('trip_activity').select('*').order('created_at',{ascending:false}).limit(30);activity=r.data||[];renderActivity()}).subscribe()}"
+          new="function subscribe(){sb.channel('trip-live').on('postgres_changes',{event:'*',schema:'public',table:'trip_people'},async()=>{let active=activeEditor(),r=await sb.from('trip_people').select('*').order('id');people=(r.data||[]).map(x=>x.name);if(!active)renderPeople();document.getElementById('identity').innerHTML='<option value=\"\">Select your name to enable editing</option>'+people.map(p=>`<option value=\"${esc(p)}\">${esc(p)}</option>`).join('');document.getElementById('identity').value=people.includes(currentUser)?currentUser:'';applyLock()}).on('postgres_changes',{event:'*',schema:'public',table:'trip_expenses'},async()=>{let active=activeEditor(),r=await sb.from('trip_expenses').select('*').order('id');expenses=r.data||[];if(active){calc();return}renderExpenses();calc();applyLock()}).on('postgres_changes',{event:'*',schema:'public',table:'trip_activity'},async()=>{let r=await sb.from('trip_activity').select('*').order('created_at',{ascending:false}).limit(30);activity=r.data||[];renderActivity()}).subscribe()}"
+          if old not in s:
+              raise SystemExit('subscribe block not found')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          PY
+      - name: Commit fix and remove workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Keep active input stable during realtime updates" || true
+          git rm .github/workflows/fix-cursor.yml || true
+          git commit -m "Remove temporary cursor fix workflow" || true
+          git push
