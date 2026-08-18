@@ -107,4 +107,15 @@ init();
   };
   const css=document.createElement('style');css.textContent='.save-expense{border:0;background:#315efb;color:#fff;border-radius:9px;padding:9px 8px;font-weight:800}@media(max-width:600px){.save-expense{grid-column:1/-1;width:100%;height:38px;padding:7px;border-radius:11px}}';document.head.appendChild(css);
 })();
+</script><script id="tripex-add-expense-activity-fix">
+(function(){
+  window.addExpense=async function(){
+    if(!canEdit()||!people.length)return;
+    const r=await sb.from('trip_expenses').insert({paid_by:'',amount:0,category:'',remarks:'',last_edited_by:currentUser,last_updated:new Date().toISOString()}).select('id').single();
+    if(r.error){alert(r.error.message);return;}
+    const targetId=r.data?.id;let tries=0;
+    const go=()=>{const el=targetId?document.querySelector('[data-focus="expense:'+targetId+':amount"]'):null;if(el){el.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>el.focus(),350);return;}if(tries++<12)setTimeout(go,120);};
+    setTimeout(go,100);
+  };
+})();
 </script></body></html>
