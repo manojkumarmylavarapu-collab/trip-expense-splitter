@@ -1,0 +1,43 @@
+name: Add mobile expense numbering
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/mobile-expense-numbering.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Add mobile expense numbering
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          marker = '</head>'
+          css = '''<style id="mobile-expense-numbering">
+          @media(max-width:600px){
+            #expenses{counter-reset:expense-number}
+            #expenses .expense{counter-increment:expense-number;position:relative}
+            #expenses .expense::before{content:"Expense " counter(expense-number);grid-column:1/-1;display:block;font-size:12px;font-weight:850;color:#315efb;letter-spacing:.04em;text-transform:uppercase;padding:0 2px 2px}
+          }
+          </style>'''
+          if 'id="mobile-expense-numbering"' not in s:
+              s = s.replace(marker, css + marker, 1)
+              p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --cached --quiet || git commit -m "Add mobile expense numbering"
+          git push
