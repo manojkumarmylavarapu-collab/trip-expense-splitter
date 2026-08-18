@@ -1,0 +1,66 @@
+name: TripEX Mobile UI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - '.github/workflows/mobile-ui.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  mobile-ui:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply mobile-first expense cards
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          marker = 'id="tripex-mobile-v2"'
+          if marker not in s:
+              css = r'''<style id="tripex-mobile-v2">
+          .expense-field{min-width:0}.expense-field>span{display:none}.expense-field input,.expense-field select{width:100%;min-width:0}
+          @media(max-width:600px){
+            body{overflow-x:hidden}.wrap{width:100%;max-width:none;padding:14px 10px 90px}.card{padding:13px 12px}.head{display:none}
+            #expenses{display:grid;gap:10px}.expense{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:11px;background:#fbfcff;border:1px solid var(--border);border-radius:16px;margin:0;box-shadow:0 3px 12px rgba(20,33,61,.05)}
+            .expense-field{display:block}.expense-field>span{display:block;font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:0 0 5px 2px}.expense-field input,.expense-field select{height:44px;padding:9px 10px;border-radius:12px;background:#fff;font-size:15px}
+            .expense-field:nth-child(3),.expense-field:nth-child(4){grid-column:1/-1}.expense .del{grid-column:1/-1;width:100%;height:38px;padding:7px;border:1px solid #ffd7da;background:#fff5f5;border-radius:11px;font-weight:800}
+            #addExpenseBtn{width:100%;height:46px;margin-top:10px;border-radius:13px;font-size:15px;position:sticky;bottom:12px;z-index:20;box-shadow:0 8px 22px rgba(49,94,251,.25)}
+            .people{gap:6px}.person{padding:6px 7px 6px 10px}.person input{width:90px}.add{display:grid;grid-template-columns:1fr auto}.add .primary{height:44px}
+            .summary{grid-template-columns:1fr 1fr}.stat{min-width:0}.value{font-size:17px;white-space:nowrap}.table{margin:0 -4px}.table table{min-width:0;width:100%;font-size:12px}.table th,.table td{padding:8px 5px}.table th:nth-child(2),.table td:nth-child(2),.table th:nth-child(3),.table td:nth-child(3){display:none}
+            .settle .line{display:flex;align-items:center;justify-content:space-between;gap:8px}.settle .line span{float:none!important;white-space:nowrap}.identity select{height:44px}.status{font-size:12px}
+          }
+          </style>'''
+              s = s.replace('</head>', css + '</head>', 1)
+
+          old = '''function renderExpenses(){document.getElementById('expenses').innerHTML=expenses.length?expenses.map(e=>`<div class="expense"><select data-focus="expense:${e.id}:paid_by" onchange="commitExpense(${e.id},'paid_by',this.value)">${people.map(p=>`<option ${p===e.paid_by?'selected':''}>${esc(p)}</option>`).join('')}</select><input data-focus="expense:${e.id}:amount" type="number" min="0" step="0.01" value="${e.amount}" oninput="editExpenseInput(${e.id},'amount',this.value)" onblur="commitExpense(${e.id},'amount',this.value)"><input data-focus="expense:${e.id}:category" value="${esc(e.category)}" placeholder="Food / Hotel / Petrol" oninput="editExpenseInput(${e.id},'category',this.value)" onblur="commitExpense(${e.id},'category',this.value)"><input data-focus="expense:${e.id}:remarks" class="remarks" value="${esc(e.remarks)}" placeholder="What was it spent for?" oninput="editExpenseInput(${e.id},'remarks',this.value)" onblur="commitExpense(${e.id},'remarks',this.value)"><button class="del" onclick="deleteExpense(${e.id})">Delete</button></div>`).join(''):'<div class="empty">No expenses yet.</div>'}'''
+          new = '''function renderExpenses(){document.getElementById('expenses').innerHTML=expenses.length?expenses.map(e=>`<div class="expense"><label class="expense-field"><span>Paid by</span><select data-focus="expense:${e.id}:paid_by" onchange="commitExpense(${e.id},'paid_by',this.value)">${people.map(p=>`<option ${p===e.paid_by?'selected':''}>${esc(p)}</option>`).join('')}</select></label><label class="expense-field"><span>Amount</span><input data-focus="expense:${e.id}:amount" type="number" min="0" step="0.01" value="${e.amount}" oninput="editExpenseInput(${e.id},'amount',this.value)" onblur="commitExpense(${e.id},'amount',this.value)"></label><label class="expense-field"><span>Category</span><input data-focus="expense:${e.id}:category" value="${esc(e.category)}" placeholder="Food / Hotel / Petrol" oninput="editExpenseInput(${e.id},'category',this.value)" onblur="commitExpense(${e.id},'category',this.value)"></label><label class="expense-field"><span>Remarks</span><input data-focus="expense:${e.id}:remarks" value="${esc(e.remarks)}" placeholder="What was it spent for?" oninput="editExpenseInput(${e.id},'remarks',this.value)" onblur="commitExpense(${e.id},'remarks',this.value)"></label><button class="del" onclick="deleteExpense(${e.id})">Delete expense</button></div>`).join(''):'<div class="empty">No expenses yet.</div>'}'''
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          old_calc = "document.getElementById('ecount').textContent=expenses.length;"
+          new_calc = "document.getElementById('ecount').textContent=expenses.length;let ht=document.getElementById('heroTotal'),hc=document.getElementById('heroCount'),he=document.getElementById('heroExpenses');if(ht)ht.textContent=money(total);if(hc)hc.textContent=people.length;if(he)he.textContent=expenses.length;"
+          s = s.replace(old_calc, new_calc, 1)
+
+          if s == p.read_text(encoding='utf-8'):
+              raise SystemExit('No changes were applied')
+          p.write_text(s, encoding='utf-8')
+
+      - name: Commit mobile UI changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Apply mobile-first expense cards"
+          git push
