@@ -1,0 +1,44 @@
+name: Fix add expense activity
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-add-expense-activity.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove premature new-expense activity log
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          marker='<script id="tripex-add-expense-activity-fix">'
+          if marker in s:
+              raise SystemExit(0)
+          patch=r'''<script id="tripex-add-expense-activity-fix">
+          (function(){
+            window.addExpense=async function(){
+              if(!canEdit()||!people.length)return;
+              const r=await sb.from('trip_expenses').insert({paid_by:'',amount:0,category:'',remarks:'',last_edited_by:currentUser,last_updated:new Date().toISOString()}).select('id').single();
+              if(r.error){alert(r.error.message);return;}
+              const targetId=r.data?.id;let tries=0;
+              const go=()=>{const el=targetId?document.querySelector('[data-focus="expense:'+targetId+':amount"]'):null;if(el){el.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>el.focus(),350);return;}if(tries++<12)setTimeout(go,120);};
+              setTimeout(go,100);
+            };
+          })();
+          </script>'''
+          s=s.replace('</body>',patch+'</body>')
+          p.write_text(s,encoding='utf-8')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Record new expense only when saved'
+          git push
